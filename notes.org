@@ -1,1 +1,7 @@
 
+* Tasks
+** TODO hdparm
+https://bbs.archlinux.org/viewtopic.php?id=220946
+https://wiki.archlinux.org/title/Hdparm
+  [2023-02-15 Wed]
+  [[file:~/Projects/][file:~/Projects/]]
