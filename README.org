@@ -1,0 +1,2 @@
+# notes
+personal backup for emacs notes.org file
