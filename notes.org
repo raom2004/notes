@@ -1,0 +1,1108 @@
+
+* Tasks
+
+** TODO hdparm : fix a disty partition
+
+#+begin_src bash :results verbatim
+# sudo ntfsfix /dev/sdc1
+#+end_src
+
+** TODO hdparm
+https://bbs.archlinux.org/viewtopic.php?id=220946
+https://wiki.archlinux.org/title/Hdparm
+
+
+#+begin_src bash :results verbatim
+ls /dev/disk/by-id/
+#+end_src
+
+try to umount and turn off usb hdd's
+#+header: :dir /sudo::
+#+begin_src bash :results verbatim
+# /usr/bin/hdparm -f -F -Y /dev/disk/by-id/usb-sobetter_EXT_552708094-0:0
+# /usr/bin/hdparm -f -F -Y /dev/disk/by-id/usb-TOSHIBA_External_USB_3.0_2012062540488-0:0
+udisksctl unmount -b /dev/
+udisksctl power-off -b /dev/
+#+end_src
+
+list only usb drives
+
+source: https://linuxopsys.com/topics/list-usb-devices-in-linux?utm_content=cmp-true
+#+begin_src bash :results verbatim
+# df -Th | awk '/media/{print $0}'
+ls -l /dev/disk/by-id | grep usb
+# ls -l /dev/disk/by-id | awk '/usb/{print $11}' | grep '[^0-9]$'
+#+end_src
+
+#+RESULTS:
+
+#+begin_src bash :results verbatim
+echo "$(basename $(ls -l /dev/disk/by-id | awk '/usb/{print $11}' | grep '[^0-9]$'))"
+#+end_src
+
+#+RESULTS:
+: sdd
+
+try 1
+#+begin_src bash :results verbatim
+# disks="$(ls -l /dev/disk/by-id | awk '/usb/{print $11}' | grep '[^0-9]$')"
+for usb_disk in $(ls -l /dev/disk/by-id | awk '/usb/{print $11}' | grep '[^0-9]$'); do
+  echo "/dev/$(basename ${usb_disk})"
+  # udisksctl unmount -b "/dev/$(basename ${usb_disk})"
+  # udisksctl power-off -b "/dev/$(basename ${usb_disk})"
+done
+#+end_src
+
+#+RESULTS:
+: /dev/sdd
+: /dev/sde
+
+#+RESULTS:
+: /dev/sdd
+: /dev/sdd1
+: /dev/sdd2
+: /dev/sdd3
+: /dev/sde
+: /dev/sde1
+
+#+begin_src bash :results verbatim
+for usb_disk in $(ls -l /dev/disk/by-id | awk '/usb/{print $11}' | grep '[^0-9]$'); do
+  echo "/dev/$(basename ${usb_disk})"
+  # udisksctl unmount -b "/dev/$(basename ${usb_disk})"
+  # umount "/dev/$(basename ${usb_disk})"
+  # udisksctl power-off -b "/dev/$(basename ${usb_disk})"
+done
+# mount
+#+end_src
+
+#+RESULTS:
+: /dev/sdd
+: /dev/sde
+
+#+begin_src bash :results verbatim
+# sudo nano /usr/lib/systemd/system-shutdown/hdparm.shutdown
+# sudo chmod a+x /usr/lib/systemd/system-shutdown/hdparm.shutdown
+if [ "$1" = "poweroff" ]; then
+  /usr/bin/hdparm -f -F -Y /dev/disk/by-id/ata-WDC_WD40EFRX-...
+fi
+#+end_src
+
+#+begin_src bash :results verbatim
+cat /usr/lib/systemd/system-shutdown/hdparm.shutdown
+#+end_src
+
+#+RESULTS:
+: #!/bin/sh
+: # We need to ensure all md arrays with external metadata
+: # (e.g. IMSM, DDF) are clean before completing the shutdown.
+: /sbin/mdadm --wait-clean --scan
+
+*** worked
+
+#+header: :dir /sudo::
+
+#+header: :tangle /tmp/usb_hdd.shutdown
+#+header: :shebang #!/bin/bash
+#+begin_src bash :results verbatim
+usb_disks () {
+  usb_disks=$(ls -l /dev/disk/by-id | awk '/usb/{print $11}' | grep '[^0-9]$')
+}
+if usb_disks; then
+  for usb_disk in "${usb_disks[@]}"; do
+    echo "usb hdd identifyed: /dev/$(basename ${usb_disk})"
+    echo "usb hdd identifyed: /dev/$(basename ${usb_disk})"
+    # for usb_disk_partition in /dev/$(basename ${usb_disk})*; do
+    #   if mount | grep -q "${usb_disk_partition}"; then
+    # 	 echo "unmounting drive ${usb_disk_partition}"
+    # 	 # umount "${usb_disk_partition}"
+    #   fi
+    # done
+    echo "powering off drive /dev/$(basename ${usb_disk})"
+    # /usr/bin/hdparm -f -F -Y "/dev/$(basename ${usb_disk})"
+    # udisksctl power-off -b "/dev/$(basename ${usb_disk})"
+    # sleep 5
+  done
+fi
+#+end_src
+
+#+RESULTS:
+: usb hdd identifyed: /dev/
+: powering off drive /dev/
+
+
+#+header: :tangle /sudo::/usr/lib/systemd/system-shutdown/usb_hdd.shutdown
+#+header: :shebang #!/bin/bash
+#+header: :dir /sudo::
+#+begin_src bash :results verbatim
+if [[ "$1" = "poweroff" ]]; then
+  usb_disks(){
+      ls -l /dev/disk/by-id | awk '/usb/{print $11}' | grep '[^0-9]$'
+  }
+  for usb_disk in $(usb_disks); do
+    # echo "/dev/$(basename ${usb_disk})"
+    for usb_disk_partition in /dev/"$(basename ${usb_disk})"[0-9]*; do
+      echo "${usb_disk_partition}"
+      if mount | grep -q "${usb_disk_partition}"; then  
+	echo "umount ${usb_disk_partition}"
+	# umount "${usb_disk_partition}"
+      fi
+    done
+    # udisksctl power-off -b "/dev/$(basename ${usb_disk})"
+    # /usr/bin/hdparm -f -F -Y "/dev/$(basename ${usb_disk})"
+    echo "/usr/bin/hdparm -f -F -Y /dev/$(basename ${usb_disk})"
+  done
+fi
+#+end_src
+
+#+RESULTS:
+#+begin_example
+/dev/sdd1
+umount /dev/sdd1
+/dev/sdd2
+umount /dev/sdd2
+/dev/sdd3
+umount /dev/sdd3
+/usr/bin/hdparm -f -F -Y /dev/sdd
+/dev/sde1
+umount /dev/sde1
+/usr/bin/hdparm -f -F -Y /dev/sde
+#+end_example
+
+#+header: :dir /sudo::
+#+begin_src bash :results verbatim
+for usb_disk in $(ls -l /dev/disk/by-id | awk '/usb/{print $11}' | grep '[^0-9]$'); do
+  echo "/dev/$(basename ${usb_disk})"
+  # for usb_disk_partition in /dev/$(basename ${usb_disk})*; do
+  #   echo "${usb_disk_partition}"
+  #   if mount | grep -q "${usb_disk_partition}"; then  
+  #     umount "${usb_disk_partition}"
+  #   fi
+  # done
+  ## hdparm
+  # -I: display information of the hard drive
+  # -f: Flush buffer cache for device on exit
+  # -F: Flush drive write cache
+  # -Y: interrupt low power consumption to shut down it completely 
+  # /usr/bin/hdparm -f -F -Y "/dev/$(basename ${usb_disk})"
+  /usr/bin/hdparm -I "/dev/$(basename ${usb_disk})"
+done
+#+end_src
+  [2023-02-15 Wed]
+  [[file:~/Projects/][file:~/Projects/]]
+
+** TODO set the default search engine for Firefox without the GUI on Linux?
+
+https://superuser.com/questions/1682794/how-can-i-set-the-default-search-engine-for-firefox-without-the-gui-on-linux
+
+#+begin_src bash :results verbatim
+cat ~/.mozilla/firefox/*.default/times.json
+#+end_src
+
+#+RESULTS:
+: {
+: "created": 1677870321708,
+: "firstUse": null
+: }
+
+policies.json 
+#+begin_src java
+{
+  "policies": {
+    "SearchEngines": {
+      "Default": "NAME_OF_SEARCH_ENGINE"
+    }
+  }
+}
+#+end_src
+
+** policies.json (do not worked)
+
+source:
+https://support.mozilla.org/en-US/kb/customizing-firefox-using-policiesjson
+#+begin_src bash
+mkdir -p ~/.mozilla/firefox/distribution
+echo "{
+  \"policies\": {
+    \"SearchEngines\": {
+      \"Default\": \"DuckDuckGo\"
+    }
+  }
+}" > ~/.mozilla/firefox/distribution/policies.json
+#+end_src
+
+source
+https://github.com/mozilla/policy-templates/blob/master/README.md#searchengines--default
+#+begin_src bash
+if ! ls /etc/firefox/policies; then
+  echo arcangel | sudo -S mkdir -p /etc/firefox/policies
+fi
+
+echo arcangel | sudo -S bash -c "echo \"{
+  \\\"policies\\\": {
+    \\\"SearchEngines\\\": {
+      \\\"Default\\\": \\\"DuckDuckGo\\\"
+    }
+  }
+}\" > /etc/firefox/policies/policies.json"
+
+#+end_src
+** changing prefs.js (do not worked)
+#+begin_src bash :results verbatim
+# user_pref("browser.urlbar.placeholderName", "Google");
+# user_pref("browser.urlbar.placeholderName.private", "Google");
+sed -i 's/Google/DuckDuckGo/g' ~/.mozilla/firefox/*.default/prefs.js
+cat ~/.mozilla/firefox/*.default/prefs.js | grep Google
+#+end_src
+
+  [2023-03-06 lun]
+
+** TODO Archlinux Display_Power_Management_Signaling
+https://wiki.archlinux.org/title/Display_Power_Management_Signaling
+  [2023-04-14 vie]
+  [[file:~/Projects/archlinux/desktop/openbox/autostart::(sleep 2 && xdotool search --sync --onlyvisible --class firefox windowminimize) &]]
+
+** TODO archlinux, adjust time in dual boot
+source: https://unix.stackexchange.com/questions/603335/wrong-time-on-archlinux
+
+#+header: :dir /sudo::
+#+begin_src bash :results verbatim
+sudo timedatectl set-local-rtc 1 --adjust-system-clock
+#+end_src
+  [2023-04-16 dom]
+  [[file:~/Projects/dot-emacs/init-openbox.el::;; init-openbox.el -- Emacs init file -*- lexical-binding: t -*-]]
+** TODO mounting usb disks automatically
+source:
+https://unix.stackexchange.com/questions/8159/mounting-usb-disks-automatically-how-it-works
+
+
+
+I tried to do this on my computer and it's work :)
+
+First I get a name for my device :
+
+#+begin_src bash :results verbatim
+ls -l /proc/disk/by-id/
+#+end_src
+
+In my case it is /proc/disk/by-id/usb-09a6_8001
+
+I added this line in /etc/fstab :
+
+#+begin_src bash :results verbatim
+/dev/disk/by-id/usb-09a6_8001   /media/macle ext2 ro,users 0 2
+#+end_src
+
+And it's working, when I plug my usbkey, it's mounted ro and owned by my user.
+  [2023-04-16 dom]
+** TODO emacs improvement
+https://renatgalimov.github.io/org-basb-code/
+  [2023-04-18 mar]
+  [[file:/run/media/angel/TOSHIBA_EXT/KN28/emacshome/documents/professional/CV/RESEARCH-EMPLOY-APPLICATION/Cover-Letter-recommendations.org::*Cover Letter (objective: why the employer should interview you)][Cover Letter (objective: why the employer should interview you)]]
+** TODO interesting web about genomecampus UK
+https://www.wellcomegenomecampus.org/
+  [2023-04-21 vie]
+** TODO dropbox git alternative
+https://github.com/prashanthellina/pullbox
+  [2023-04-23 dom]
+** TODO Reference / bibliography management in Emacs: helm-bibtex, org-ref, ebib
+https://stackoverflow.com/questions/65748813/reference-bibliography-management-in-emacs-helm-bibtex-org-ref-ebib
+  [2023-04-23 dom]
+  [[file:~/Projects/dot-emacs/src-org/init-essentials-ebib.org::*bibliographyc database management: bibtex, ebib][bibliographyc database management: bibtex, ebib]]
+** TODO reusing bibliography from other pdf
+https://www.overleaf.com/learn/latex/Bibliography_management_with_bibtex
+  [2023-04-25 mar]
+** TODO annotated bibliography template
+https://orgmode.org/worg/exporters/anno-bib-template-worg.html
+  [2023-04-25 mar]
+  [[file:/run/media/angel/w7Black/2023-job-bewerbungen/2023-04-18_Boehringer-Ingerheim_Research-Laboratory-Scientist_Biotherapeutics-Discovery-Research/articles-bibtex-pdf/articles.org][file:/run/media/angel/w7Black/2023-job-bewerbungen/2023-04-18_Boehringer-Ingerheim_Research-Laboratory-Scientist_Biotherapeutics-Discovery-Research/articles-bibtex-pdf/articles.org]]
+** TODO biblatex/natbib vs CSL processor
+https://kristofferbalintona.me/posts/202206141852/
+  [2023-04-26 mié]
+  [[file:/run/media/angel/w7Black/2023-job-bewerbungen/2023-04-18_Boehringer-Ingerheim_Research-Laboratory-Scientist_Biotherapeutics-Discovery-Research/articles-bibtex-to-pdf/articles-abbrv.org::\bibliographystyle{abbrv}][Publications]]
+** TODO customize citation and bibliography
+https://tex.stackexchange.com/questions/204303/customize-bibtex-citation-and-bibliography
+
+bibtex styles
+https://www.cs.stir.ac.uk/~kjt/software/latex/showbst.html
+  [2023-04-26 mié]
+** TODO babel documentation
+https://mirror.easyname.at/ctan/macros/latex/required/babel/base/babel.pdf
+  [2023-04-26 mié]
+** TODO xfce4-terminal slow startup
+posible solution:
+https://bbs.archlinux.org/viewtopic.php?id=176663
+https://wiki.archlinux.de/title/GNOME#Tipps_und_Tricks
+
+#+header: :dir /sudo::
+#+begin_src bash :results verbatim
+echo "export NO_AT_BRIDGE=1" >> /etc/export
+#+end_src
+
+#+RESULTS:
+
+  [2023-04-27 jue]
+** TODO shell benchmarking
+https://unix.stackexchange.com/questions/148035/is-dash-or-some-other-shell-faster-than-bash
+
+minimize app at startup (python 3 script with xdotool and wmctrl)
+https://askubuntu.com/questions/663187/how-can-i-run-a-program-on-startup-minimized
+
+#+begin_example python
+#!/usr/bin/env python3
+import subprocess
+import sys
+import time
+
+subprocess.Popen(["/bin/bash", "-c", sys.argv[1]])
+windowname = sys.argv[2]
+
+def read_wlist(w_name):
+    try:
+        l = subprocess.check_output(["wmctrl", "-l"]).decode("utf-8").splitlines()
+        return [w.split()[0] for w in l if w_name in w][0]
+    except (IndexError, subprocess.CalledProcessError):
+        return None
+
+t = 0
+while t < 30:
+    window = read_wlist(windowname)
+    time.sleep(0.1)
+    if window != None:
+        subprocess.Popen(["xdotool", "windowminimize", window])
+        break
+    time.sleep(1)
+    t += 1
+#+end_example
+
+bash vs python
+https://stackoverflow.com/questions/2424921/python-vs-bash-in-which-kind-of-tasks-each-one-outruns-the-other-performance-w
+
+#+begin_example
+Bash only understands text. Other tools must be called for a GUI and data passed back from them. A Python script is one option. Faster but less flexible options are the binaries like YAD, Zenity, and GTKDialog.
+
+While shells like Bash work well with GUIs like Yad, GtkDialog (embedded XML-like interface to GTK+ functions), dialog, and xmessage, Python is much more capable and so better for complex GUI windows.
+#+end_example
+
+poligrot programing (2006)
+
+#+begin_example
+ Polyglot Programming
+My first professional work as a software developer was writing Clipper code. Clipper was a compiler for dBASE code with object-oriented extensions. This was in the days of DOS, and the entire application was written in a single language. We didn't even use SQL. Instead, the data storage was shared DBF files on a new concept, the LAN (I remember reading a PC-Magazine of that era declaring that the current year was the "Year of the LAN").
+
+We are entering a new era of software development. For most of our (short) history, we've primarily written code in a single language. Of course, there are exceptions: most applications now are written with both a general purpose language and SQL. Now, increasingly, we're expanding our horizons. More and more, applications are written with Ajax frameworks (i.e., JavaScript). If you consider the embedded languages we use, it's even broader: XML is used as an embedded configuration language widely in both the Java and .NET worlds.
+
+But I'm beginning to see a time where even the core language (the one that gets translated to byte code) will cease its monoculture. Pretty much any computer you buy has multiple processors in it, so we're going to have to get better writing threading code. Yet, as anyone who has read Java Concurrency in Practice by Brian Goetz (an exceptional book, by the way), writing good multi-threading code is hard. Very hard. So why bother? Why not use a language that handles multiple threads more gracefully? Like a functional language? Functional languages eliminate side effects on variables, making it easier to write thread-safe code. Haskell is such a language, and implementations exist for both Java (Jaskell) and .NET (Haskell.net). Need a nice web-based user interface? Why not use Ruby on Rails via JRuby (which now support RoR).
+
+Applications of the future will take advantage of the polyglot nature of the language world. We have 2 primary platforms for "enterprise" development: .NET and Java. There are now lots of languages that target those platforms. We should embrace this idea. While it will make some chores more difficult (like debugging), it makes others trivially easy (or at least easier). It's all about choosing the right tool for the job and leveraging it correctly. Pervasive testing helps the debugging problem (adamant test-driven development folks spend much less time in the debugger). SQL, Ajax, and XML are just the beginning. Increasingly, as I've written before, we're going to start adding domain specific languages. The times of writing an application in a single general purpose language is over. Polyglot programming is a subject I'm going to speak about a lot next year. Stay tuned... 
+#+end_example
+  [2023-04-28 vie]
+  [[file:~/Projects/archlinux/desktop/openbox/autostart][file:~/Projects/archlinux/desktop/openbox/autostart]]
+** TODO systemctl / systemctl --user
+systemctl
+https://www.redhat.com/sysadmin/love-systemd
+systemctl vs SysV
+https://www.redhat.com/sysadmin/getting-started-systemctl
+
+learning systemctl by archlinux forum, https://bbs.archlinux.org/viewtopic.php?id=213751, helped me find the link https://bbs.archlinux.org/viewtopic.php?id=207465, through I found the sound config file:
+#+begin_src bash :results verbatim silent
+cat /etc/alsa/conf.d/50-pulseaudio.conf
+#+end_src
+https://bbs.archlinux.org/viewtopic.php?id=207381
+
+systemctl --user, https://wiki.archlinux.org/title/Systemd/User
+
+description of the udiskie2, https://man.archlinux.org/man/community/udiskie/udiskie.8.en, the idea is to set desktop notification when a drive is plugging, reason why we need to read desktop notification/libnotify  https://wiki.archlinux.org/title/Desktop_notifications#Notification_servers, 
+  [2023-04-28 vie]
+  [[file:~/Projects/archlinux/desktop/openbox/autostart::'file:///run/media/angel/w7Black/2023-job-bewerbungen/2023-04-18_Boehringer-Ingerheim_Research-Laboratory-Scientist_Biotherapeutics-Discovery-Research/Example-resume-phdstem-2.pdf']]
+** TODO Arch idle power consumption improvement
+https://bbs.archlinux.org/viewtopic.php?id=125954
+#+begin_example bash
+pcie_aspm=force i915.i915_enable_rc6=1
+#+end_example
+alexcriss wrote:
+Booting with i915.i915_enable_rc6=1 gets the power consumption down.
+https://unix.stackexchange.com/questions/36335/how-to-add-boot-parameters-in-arch-linux
+If you've updated to grub2, edit /etc/default/grub
+add i915.i915_enable_rc6=1 to the following line(s) (ensure they are not commented)
+
+GRUB_CMDLINE_LINUX="i915.i915_enable_rc6=1" # for both recovery and normal mode GRUB_CMDLINE_LINUX_DEFAULT="i915.i915_enable_rc6=1" # for normal mode only
+
+Then update the grub.cfg file, typically grub-mkconfig -o /boot/grub/grub.cfg
+#+begin_src bash :results verbatim
+cat /etc/default/grub
+GRUB_CMDLINE_LINUX_DEFAULT="loglevel=3 quiet"
+GRUB_CMDLINE_LINUX_DEFAULT="i915.i915_enable_rc6=1 loglevel=3 quiet"
+#+end_src
+
+  [2023-04-30 dom]
+** TODO org macros
+source: https://emacs.stackexchange.com/questions/64273/org-mode-source-block-conditional-header
+#+begin_example org
+#+MACRO: conditional-header (eval (concat "#+header: :results output " (prin1-to-string org-export-current-backend)))  
+
+{{{conditional-header}}}
+#+begin_src emacs-lisp :exports both
+(if (eq org-export-current-backend 'html)
+  (princ "<ul><li>Green tea</li><li>Black tea</li></ul>")
+  (princ "\\begin{itemize}\n\\item Green tea\n\\item Black tea\n\\end{itemize}"))
+#+end_src
+#+end_example
+  [2023-05-02 mar]
+  [[file:/run/media/angel/w7Black/2023-job-bewerbungen/2023-04-18_Boehringer-Ingerheim_Research-Laboratory-Scientist_Biotherapeutics-Discovery-Research/DEFINITIVE-ORG-FILES/Ricardo-CV.org::*Education and Training][Education and Training]]
+** TODO org-mode writting academic papers / zotero
+source: https://jonathanabennett.github.io/blog/2019/05/29/writing-academic-papers-with-org-mode/
+  [2023-05-02 mar]
+  [[file:/run/media/angel/w7Black/2023-job-bewerbungen/2023-04-18_Boehringer-Ingerheim_Research-Laboratory-Scientist_Biotherapeutics-Discovery-Research/DEFINITIVE-ORG-FILES/Ricardo-CV.org::*Education and Training][Education and Training]]
+** TODO abbreviated journal names in bibtex (Kitchin)
+https://kitchingroup.cheme.cmu.edu/blog/2014/10/11/Abbreviated-journal-names-in-bibtex/
+  [2023-05-02 mar]
+  [[file:/run/media/angel/w7Black/2023-job-bewerbungen/2023-04-18_Boehringer-Ingerheim_Research-Laboratory-Scientist_Biotherapeutics-Discovery-Research/DEFINITIVE-ORG-FILES/Ricardo-CV.org::*Proteomic Methods][Proteomic Methods]]
+** TODO archlinux fan speed control
+
+WORKED:
+
+https://aur.archlinux.org/packages/mcontrolcenter-bin
+
+monitor cpu temperature
+#+begin_example bash
+watch cat /sys/devices/system/cpu/cpu[0-3]*/cpufreq/scaling_cur_freq
+#+end_example
+
+
+NOT WORKED:
+
+[[https://wiki.archlinux.org/title/Fan_speed_control]]
+
+set sensors, just run this command and answer YES to all
+
+#+begin_src bash :results verbatim
+sensors-detect
+#+end_src
+
+check the detected sensors
+
+#+begin_src bash :results verbatim
+sensors
+#+end_src
+
+#+RESULTS:
+#+begin_example
+coretemp-isa-0000
+Adapter: ISA adapter
+Package id 0:  +64.0°C  (high = +84.0°C, crit = +100.0°C)
+Core 0:        +64.0°C  (high = +84.0°C, crit = +100.0°C)
+Core 1:        +61.0°C  (high = +84.0°C, crit = +100.0°C)
+
+acpitz-acpi-0
+Adapter: ACPI interface
+temp1:        +27.8°C  (crit = +105.0°C)
+temp2:        +29.8°C  (crit = +105.0°C)
+temp3:        +64.0°C  (crit = +100.0°C)
+
+#+end_example
+
+the fan RPM do not appeared, so we need to Increase the fan divisor for sensors [[https://wiki.archlinux.org/title/Fan_speed_control#Increase_the_fan_divisor_for_sensors][url]]
+
+(WARNING: CODE NOT COMPLETE)
+#+begin_src bash :results verbatim
+chipset_name=$(sensors | head -n1)
+echo "chip \"${chipset_name}\"
+set fan"
+#+end_src
+
+#+RESULTS:
+: coretemp-isa-0000
+  [2023-05-03 mié]
+** TODO pacman expac
+
+show package optional dependencies
+#+begin_src bash :results verbatim
+expac -Ss '%D' obs-studio
+#+end_src
+
+#+RESULTS:
+: ffmpeg  jansson  libxinerama  libxkbcommon-x11  mbedtls  rnnoise  pciutils  qt6-svg  curl  jack  gtk-update-icon-cache  pipewire  libxcomposite
+
+#+begin_src bash :results verbatim
+pacman -Ss hevc
+#+end_src
+
+#+RESULTS:
+: extra/x265 3.5-3 [installed]
+:     Open Source H265/HEVC video encoder
+: community/hm 17.0-1
+:     HEVC Test Model - the reference software for HEVC
+: community/kvazaar 2.2.0-1
+:     An open-source HEVC encoder
+: community/svt-hevc 1.5.1-2
+:     Scalable Video Technology HEVC encoder
+
+#+begin_src bash :results verbatim silent
+for package in $(expac -Ss '%D' obs-studio); do
+  echo "package: ${package}"
+  pacman -Ss "${package}"
+  echo 
+done
+#+end_src
+
+NOT WORKED
+#+begin_src bash :results verbatim
+svt-hevc
+#+end_src
+https://superuser.com/questions/1296374/best-settings-for-ffmpeg-with-nvenc
+
+#+begin_src bash :results verbatim
+pacman -Ss hevc
+# pacman -Ss ffmpeg
+#+end_src
+
+#+RESULTS:
+: extra/x265 3.5-3 [installed]
+:     Open Source H265/HEVC video encoder
+: community/hm 17.0-1
+:     HEVC Test Model - the reference software for HEVC
+: community/kvazaar 2.2.0-1
+:     An open-source HEVC encoder
+: community/svt-hevc 1.5.1-2 [installed]
+:     Scalable Video Technology HEVC encoder
+
+  [2023-05-03 mié]
+  [[file:~/Projects/archlinux/desktop/openbox/autostart][file:~/Projects/archlinux/desktop/openbox/autostart]]
+** TODO cpupower reduce GHz
+https://unix.stackexchange.com/questions/491944/cpu-temperatures-in-linux-throttling-or-wrong-reading
+
+#+begin_src bash :results verbatim
+sudo cpupower frequency-set -u 3100MHz
+#+end_src
+
+  [2023-05-07 dom]
+  [[file:~/Projects/dot-emacs/init-openbox.el::;; init-openbox.el -- Emacs init file -*- lexical-binding: t -*-]]
+** DONE rename snippets
+
+#+begin_src bash :results verbatim :wrap src org
+for dir in $(ls -d ~/Projects/snippets/[a-z]*); do
+  cd "$dir"
+  for file in $(ls "${dir}"); do
+  # echo "$(basename ${dirA}/${dirB})"
+  file_name=$(cat "${dir}/${file}" | awk '/# name/{ print $3}')
+  echo "processing file $file_name"
+  mv "$file" "$file_name"
+  done
+done
+#+end_src
+
+  [2023-05-08 lun]
+** DONE installing AUR obs-studio-browser
+https://www.jeremymorgan.com/tutorials/linux/how-to-install-obs-arch-linux/
+
+requirements for obs-studio-browser installation:
+
+#+name: block-1
+#+header: :var url="https://aur.archlinux.org/packages/obs-studio-browser"
+#+begin_src bash :results verbatim
+# ahow url in text and print only lines from pattern 1 to pattern 2
+pattern1="^Dependencies"
+pattern2="^Required by"
+catch_only_
+lynx -dump --display_charset=utf-8 "${url}" \
+  | sed -n "/${pattern1}/,/${pattern2}/p" \
+  | awk '/\* [[]/{ print $2 }' \
+  | sed 's/^\[[0-9]*\]//' \
+  | head -n -1
+#+end_src
+
+#+RESULTS: block-1
+#+begin_example
+at-spi2-core
+ffmpeg-obs
+ftl-sdk
+gtk-update-icon-cache
+jack
+libxcomposite
+libxrandr
+libxss
+mbedtls
+nss
+pciutils
+pipewire
+qt6-svg
+qt6-wayland
+rnnoise
+vlc-luajit
+x264
+xdg-desktop-portal
+asio
+#+end_example
+
+packages no present in system:
+
+#+name: block-2
+#+header: :var input=block-1
+#+header: :cache yes
+#+begin_src bash :results verbatim
+input_array=(${input//$'\n'/ })
+array_packages_version=$(pacman -Qe)
+for package in "${input_array[@]}"; do
+  if ! pacman -Ql "${package}" &> /dev/null; then
+    echo "${package}"
+  fi  
+done
+#+end_src
+
+#+RESULTS[7995e016e0d853b26b047052fc9841857704f2ad]: block-2
+: ffmpeg-obs
+: ftl-sdk
+: qt6-wayland
+: vlc-luajit
+: xdg-desktop-portal
+: asio
+
+other libraries were required:
+
+#+begin_example bash
+error: target not found: ffmpeg-obs>=6
+==> ERROR: 'pacman' failed to install missing dependencies.
+==> Missing dependencies:
+  -> qt6-wayland
+  -> ffmpeg-obs>=6
+==> Checking buildtime dependencies...
+==> Installing missing dependencies...
+error: target not found: libajantv2
+error: target not found: cef-minimal-obs=103.0.0_5060_shared_textures_143.2591+g4204d54+chromium_103.0.5060.134_1
+==> ERROR: 'pacman' failed to install missing dependencies.
+==> Missing dependencies:
+  -> cmake
+  -> libfdk-aac
+  -> swig
+  -> sndio
+  -> asio
+  -> nlohmann-json
+  -> websocketpp
+  -> libajantv2
+  -> cef-minimal-obs=103.0.0_5060_shared_textures_143.2591+g4204d54+chromium_103.0.5060.134_1
+==> ERROR: Could not resolve all dependencies.
+
+#+end_example
+
+#+header: :dir /sudo::
+#+begin_src bash :results verbatim
+input=(
+  "cmake"
+  "libfdk-aac"
+  "swig"
+  "sndio"
+  "asio"
+  "nlohmann-json"
+  "websocketpp"
+  "libajantv2"
+  "cef-minimal-obs"
+)
+bulk_aur(){
+  sudo pacman -Syu &> /dev/null || printf "%s\n" "Error updating pacman"
+  input=($@)
+  for n in "${input[@]}"; do
+    printf "%s\n" "${n}"
+    if ! sudo pacman -Qe | grep ^"${n}"; then
+      if ! sudo pacman -S ^"${n}"$ &> /dev/null; then
+	aur "${n}"
+      fi
+    fi
+  done
+}
+bulk_aur "${input[@]}"
+#+end_src
+
+#+RESULTS:
+: cmake
+: libfdk-aac
+: swig
+: sndio
+: asio
+: nlohmann-json
+: websocketpp
+: libajantv2
+: cef-minimal-obs
+
+#+begin_src bash :results verbatim
+sudo pacman -R okular
+sudo pacman -R purpose
+sudo pacman -R kaccounts-integration
+sudo pacman -R audacious calibre python-pyqt6-webengine signon-ui
+sudo pacman -R audacious-plugins firefox mpv qt5-webengine qt6-webengine vlc-luajit
+#+end_src
+
+#+begin_src bash :results verbatim
+paro ffmpeg-obs
+cef-minimal-obs-bin
+
+#+end_src
+
+#+begin_src bash :results verbatim
+    url="https://aur.archlinux.org/${1}.git"
+studio/authors/AUTHORS
+==> Tidying install...
+  -> Removing libtool files...
+  -> Purging unwanted files...
+  -> Removing static library files...
+  -> Stripping unneeded symbols from binaries and libraries...
+  -> Compressing man and info pages...
+==> Checking for packaging issues...
+==> WARNING: Package contains reference to $srcdir
+usr/lib/obs-scripting/_obspython.so
+usr/lib/obs-scripting/obslua.so
+==> Creating package "obs-studio-browser"...
+  -> Generating .PKGINFO file...
+  -> Generating .BUILDINFO file...
+  -> Generating .MTREE file...
+  -> Compressing package...
+==> Creating package "obs-studio-browser-debug"...
+  -> Generating .PKGINFO file...
+  -> Generating .BUILDINFO file...
+  -> Generating .MTREE file...
+  -> Compressing package...
+==> Leaving fakeroot environment.
+==> Finished making: obs-studio-browser 29.1.0-3 (mar 09 may 2023 18:58:45)
+==> Installing package obs-studio-browser with pacman -U...
+[sudo] password for angel: 
+loading packages...
+resolving dependencies...
+looking for conflicting packages...
+
+Packages (2) obs-studio-browser-29.1.0-3  obs-studio-browser-debug-29.1.0-3
+
+Total Installed Size:  521,37 MiB
+
+:: Proceed with installation? [Y/n] 
+(2/2) checking keys in keyring                     [######################] 100%
+(2/2) checking package integrity                   [######################] 100%
+(2/2) loading package files                        [######################] 100%
+(2/2) checking for file conflicts                  [######################] 100%
+(2/2) checking available disk space                [######################] 100%
+:: Processing package changes...
+(1/2) installing obs-studio-browser                [######################] 100%
+Optional dependencies for obs-studio-browser
+    libfdk-aac: FDK AAC codec support [installed]
+    intel-media-driver: Hardware encoding (>= Broadwell)
+    libva-intel-driver: Hardware encoding (<= Haswell)
+    libva-mesa-driver: Hardware encoding
+    swig: Scripting [installed]
+    luajit: Lua scripting [installed]
+    python>=3.11: Python scripting [installed]
+    sndio: Sndio input client [installed]
+    v4l2loopback-dkms: Virtual camera output
+    libajantv2: AJA NTV 2 support [installed]
+    decklink: Blackmagic Design DeckLink support
+(2/2) installing obs-studio-browser-debug          [######################] 100%
+:: Running post-transaction hooks...
+(1/3) Arming ConditionNeedsUpdate...
+(2/3) Updating icon theme caches...
+(3/3) Updating the desktop file MIME type cache...
+==> Cleaning up...
+
+#+end_src
+
+  [2023-05-09 mar]
+  [[file:~/Projects/archlinux/desktop/openbox/autostart::third=$(((screen_width / 3) - ${width_border_left:-1} - ${width_border_right:-1}))]]
+
+** DONE pacman
+
+: list installed packages and version
+
+#+begin_src bash :results verbatim silent
+pacman -Qe
+#+end_src
+
+: list packages available for upgrade
+
+#+header: :dir /sudo::
+#+begin_src bash :results verbatim
+pacman -Sy && echo && pacman -Qu
+#+end_src
+
+#+RESULTS:
+: :: Synchronising package databases...
+:  core
+:  core is up to date extra
+:  extra is up to date community
+:  community is up to date
+: libopenmpt 0.7.0-1 -> 0.7.1-1
+: luajit 2.1.0.beta3.r471.g505e2c03-1 -> 2.1.0.beta3.r471.g224129a8-1
+
+: paru
+# a package installer for AUR packages
+# the author has interesting projects in rust, and uses toml and yaml
+https://github.com/Morganamilo
+https://toml.io/en/
+https://www.redhat.com/en/topics/automation/what-is-yaml
+https://www.redhat.com/sysadmin/yaml-beginners
+# example runing shell commands in yaml
+https://github.com/Morganamilo/paru/blob/master/.github/workflows/paru.yml
+  [2023-05-09 mar]
+** TODO Top programing languages (source: github)
+https://octoverse.github.com/2022/top-programming-languages
+  [2023-05-09 mar]
+** TODO mp4 to gif
+using OBS-STUDIO
+https://schnerring.net/blog/use-obs-and-ffmpeg-to-create-gif-like-screencasts/
+using asciinema
+https://stackoverflow.com/questions/4279611/how-to-embed-a-video-into-github-readme-md
+  [2023-05-09 mar]
+  [[file:~/Projects/archlinux/desktop/openbox/shortcuts-openbox.sh::<enabled>true</enabled>]]
+** TODO archlinux show second keyboard
+https://unix.stackexchange.com/questions/509000/can-i-launch-macros-and-shortcuts-from-a-second-keyboard-on-linux
+  [2023-05-11 jue]
+  [[file:/run/media/angel/0403-0201/archlinux/dotfiles/.functions::pacman -Qm "${package}"]]
+** TODO archlinux keyboard
+layout fix
+- reference: https://bbs.archlinux.org/viewtopic.php?id=283204
+- suggested solution: set persistent keyboard layout by localectl
+
+- example:
+#+begin_src bash :results verbatim
+localectl --no-convert set-x11-keymap cz,us pc104 ,dvorak grp:win_space_toggle
+#+end_src
+
+- code executed
+#+begin_src bash :results verbatim
+localectl --no-convert set-x11-keymap es,us,at pc105 qwerty grp:win_space_toggle
+#+end_src
+
+multiple keyboards support
+[[https://wiki.archlinux.org/title/X_keyboard_extension#Multiple_keyboards]]
+
+
+  [2023-05-11 jue]
+  [[file:/run/media/angel/0403-0201/archlinux/dotfiles/.functions::cd "$OLDPWD"]]
+** TODO vienna rna
+https://www.reddit.com/r/bioinformatics/comments/uhlvl0/is_the_viennarna_package_for_linux_still_working/
+  [2023-05-11 jue]
+** TODO alternative to org detangle
+https://github.com/mtekman/org-tanglesync.el
+  [2023-05-11 jue]
+  [[file:~/Projects/archlinux/base.org::*bin/moveresize_window][bin/moveresize_window]]
+** TODO org-macros in header arguments of org-babel?
+https://emacs.stackexchange.com/questions/48733/org-macros-in-header-arguments-of-org-babel
+  [2023-05-11 jue]
+  [[file:/tmp/versuch/versuch1.org::sort-and-cleansing][sort-and-cleansing]]
+** TODO hdmi
+#+begin_src bash :results verbatim
+xrandr --output HDMI-1 --mode 1920x1080
+#+end_src
+  [2023-05-12 vie]
+  [[file:~/Projects/archlinux/desktop/openbox/autostart::~/.fehbg &]]
+** TODO python library like Unix xdotool
+https://github.com/mherrmann/selenium-python-helium
+  [2023-05-12 vie]
+  [[file:/run/media/angel/w7Black/2023-job-bewerbungen/2023-05-10_DEU_SYNLAB-IT/bewerbungsschreiben.org::*Plantilla][Plantilla]]
+** TODO archlinux openbox security: run a script by key shortcut that requires sudo permission
+objective:
+
+run a script to change, e.g. the backlight with just a keybinding, when it requires sudo permission
+
+suggested way to achieve this:
+
+you can enter a script itself in sudoers as not requiring a password, then run the script as sudo with key binding, understanding that a malicious script could make use of such function, but only that function. This can sound like a security breach, but the only thing that such attack could do is to change the backlight.
+
+This forum answer, content a script example that show how to write a complex functionlity in an understandable way.
+
+#+begin_example bash
+#!/bin/bash
+
+backlight=/sys/class/backlight/intel_backlight/
+old=$(< $backlight/brightness)
+new=$old
+max=$(< $backlight/max_brightness)
+min=1
+step=83
+
+case $1 in
+	+) new=$((new + step)) ;;
+	-) new=$((new - step)) ;;
+	max) new=$max ;;
+	min) new=$min ;;
+	[0-9]*) new=$1 ;;
+	*) echo -e "Usage: bright [ARGUMENT]\n\n"
+		"ARGUMENT:\n\n"
+		"max or min\tSet brightness to the maximum or minimum\n\n"
+		"+ or -\t\tIncrease or decrease brightness\n\n"
+		"From 1 to $max\tSet brightness manually to the desired newue" ;;
+esac
+
+[[ $new -lt $min ]] && new=$min
+[[ $new -gt $max ]] && new=$max
+
+[[ $new -eq $old ]] && exit
+if [[ $(uid -u) -eq 0 ]]; then
+   tee $backlight/brightness <<<$new
+else
+   echo "You must be root or use sudo..."
+fi
+#+end_example
+
+source: https://bbs.archlinux.org/viewtopic.php?pid=1741525#p1741525
+  [2023-05-13 sáb]
+** TODO archlinux inspector parrot webiste
+https://code.jessemcclure.org/index.html/doc/tip/README.md
+  [2023-05-13 sáb]
+** TODO ask for sudo password at the beginning of a script
+#+begin_example bash
+sudo -v
+#+end_example
+
+explainning:
+There is also a practice of putting "sudo -v" at the start of any such script, then "sudo" before just the commands that require root access.  This kind of gets the best of both worlds.  The initial "sudo -v" ensures that the user running is a valid sudo user (they are prompted for the password right at the start).  From them on further sudo commands may not need a password if the timeout hasn't expired - but only those commands that have sudo infront of them are actually ran as root.
+
+#+begin_src bash :results verbatim
+man sudo | grep '\-v'
+#+end_src
+
+#+RESULTS:
+:      sudo -v [-ABkNnS] [-g group] [-h host] [-p prompt] [-u user]
+:      sudoers(5) for more information.  By running sudo with the -v option, a
+:      -V, --version
+:      -v, --validate
+
+source: https://bbs.archlinux.org/viewtopic.php?pid=1741553#p1741553
+  [2023-05-13 sáb]
+** DONE test drive speed read
+#+header: :dir /sudo::
+#+header: :results verbatim
+#+begin_src bash
+hdparm -t /dev/mmcblk0
+#+end_src
+
+#+RESULTS:
+: 
+: /dev/mmcblk0:
+:  Timing buffered disk reads:  22 MB in  4.18 seconds =   5.27 MB/sec
+
+: /dev/mmcblk0:
+:  Timing buffered disk reads:  18 MB in  3.30 seconds =   5.45 MB/sec
+
+#+header: :dir /sudo::
+#+header: :results verbatim
+#+begin_src bash
+hdparm -t /dev/sda1
+#+end_src
+
+#+RESULTS:
+: 
+: /dev/sda1:
+:  Timing buffered disk reads: 378 MB in  3.00 seconds = 125.99 MB/sec
+
+minutes required to copu 1.8 GiB from =/dev/mmcblk0= to w7Black, with a read timing of 5.45 MB/sec
+src_emacs-lisp[]{(print (format "%s %s" (/ 1800 5) "minutes"))} {{{results(=360 minutes=)}}}
+
+https://bbs.archlinux.org/viewtopic.php?pid=1729929#p1729929
+  [2023-05-13 sáb]
+** TODO diference between MiB and MB, and byte and bit
+1 byte = 8 bits
+MiB = 10^{2}
+
+
+https://digilent.com/blog/mib-vs-mb-whats-the-difference/
+  [2023-05-13 sáb]
+** TODO Customize org-babel latex template when evaluating a source block
+
+
+I'm using latex source blocks to generate images with org-babel using :results file as in the example below
+
+#+begin_src latex :results file graphics :file myplot.pdf :fit yes
+\LaTeX
+#+end_src
+
+When evaluating this block I get
+
+#+RESULTS:
+[[file:myplot.pdf]]
+
+https://emacs.stackexchange.com/questions/61162/customize-org-babel-latex-template-when-evaluating-a-source-block
+  [2023-05-13 sáb]
+** TODO bash terminal sudo completion
+inlude in your .bashrc:
+complete -cf sudo
+
+https://bbs.archlinux.org/viewtopic.php?id=45613
+  [2023-05-13 sáb]
+  [[file:~/Documents/org/notes.org::*diference between MiB and MB, and byte and bit][diference between MiB and MB, and byte and bit]]
+** TODO Linux SD card/SDIO driver development 0-basic knowledge
+SD cards are classified according to the bus speed mode, there are the following types:
+
+Default Speed ​​mode: 3.3V power supply mode, frequency upper limit 25MHz, speed upper limit 12.5MB/sec
+ High Speed ​​mode: 3.3V power supply mode, frequency upper limit 50MHz, speed upper limit 25MB/sec
+ SDR12: UHS-I card, 1.8V power supply mode, frequency upper limit 25MHz, speed upper limit 12.5MB/sec
+ SDR25: UHS-I card, 1.8V power supply mode, frequency upper limit 50MHz, speed upper limit 25MB/sec
+ SDR50: UHS-I card, 1.8V power supply mode, frequency upper limit 100MHz, speed upper limit 50MB/sec
+ SDR104: UHS-I card, 1.8V power supply mode, frequency upper limit 208MHz, speed upper limit 104MB/sec
+ DDR50: UHS-I card, 1.8V power supply mode, frequency upper limit 50MHz, performance upper limit 50MB/sec
+UHS156： UHS-II RCLK Frequency Range 26MHz - 52MHz, up to 1.56Gbps per lane.
+
+source: https://www.programmersought.com/article/40256125396/
+
+If you have enough RAM free, you can run /tmp from RAM
+source: https://unix.stackexchange.com/questions/386255/improve-sd-card-write-speed
+
+real sdcard spped
+#+header: :dir /sudo::
+#+header: :results verbatim
+#+begin_src bash
+sudo dmesg | grep mmc
+#+end_src
+
+#+RESULTS:
+: [    1.343618] mmc0: cannot verify signal voltage switch
+: [    1.499757] mmc0: new ultra high speed SDR104 SDHC card at address 0001
+: [    1.503980] mmcblk0: mmc0:0001 SD32G 29.1 GiB 
+: [    1.505022]  mmcblk0: p1
+: [   12.518650] FAT-fs (mmcblk0p1): Volume was not properly unmounted. Some data may be corrupt. Please run fsck.
+
+  [2023-05-13 sáb]
+  [[file:~/Documents/org/notes.org::*test drive speed read][test drive speed read]]
+** TODO ln
+#+begin_src bash :results verbatim
+whoami
+#+end_src
+
+#+RESULTS:
+: angel
+
+#+header: :dir /sudo::
+#+header: :results verbatim
+#+begin_src bash
+user_name=angel
+ln -s /home/"${user_name}"/Projects/installed/archlinux/dotfiles/.aliases /home/"${user_name}" 
+ln -s /home/"${user_name}"/Projects/installed/archlinux/dotfiles/.bash_prompt /home/"${user_name}" 
+ln -s /home/"${user_name}"/Projects/installed/archlinux/dotfiles/.bashrc /home/"${user_name}" 
+ln -s /home/"${user_name}"/Projects/installed/archlinux/dotfiles/.functions /home/"${user_name}" 
+ln -s /home/"${user_name}"/Projects/installed/archlinux/dotfiles/.git-prompt-colors.sh /home/"${user_name}" 
+ln -s /home/"${user_name}"/Projects/installed/archlinux/dotfiles/.inputrc /home/"${user_name}" 
+ln -s /home/"${user_name}"/Projects/installed/archlinux/dotfiles/.vimrc /home/"${user_name}" 
+ln -s /home/"${user_name}"/Projects/installed/archlinux/dotfiles/.zsh_prompt /home/"${user_name}" 
+ln -s /home/"${user_name}"/Projects/installed/archlinux/dotfiles/.zshrc /home/"${user_name}" 
+#+end_src
+
+#+header: :dir /sudo::
+#+header: :results verbatim
+#+begin_src bash
+user_name=angel
+ln -s /home/"${user_name}"/Projects/installed/archlinux/bin/pana /usr/local/bin
+ln -s /home/"${user_name}"/Projects/installed/archlinux/bin/paur /usr/local/bin
+#+end_src
+
+#+RESULTS:
+
+  [2023-05-15 lun]
+  [[file:/run/media/angel/0403-0201/archlinux/script2-root.sh::remove arch loud pop on startup (deactivating sound card power saving)]]
+** TODO hdparm
+https://bbs.archlinux.org/viewtopic.php?id=220946
+https://wiki.archlinux.org/title/Hdparm
+  [2023-02-15 Wed]
+  [[file:~/Projects/][file:~/Projects/]]
+** TODO release note BEST PRACTICES
+https://www.productplan.com/learn/release-notes-best-practices/
+  [2023-05-16 mar]
+  [[file:/sudo:root@dark:/home/angel/Projects/installed/archlinux/bin/paur][file:/sudo:root@dark:/home/angel/Projects/installed/archlinux/bin/paur]]
+** TODO privateGPT
+https://github.com/imartinez/privateGPT
+  [2023-05-16 mar]
+  [[file:/run/media/angel/0403-0201/archlinux_dark.org::*script2-user.sh][script2-user.sh]]
