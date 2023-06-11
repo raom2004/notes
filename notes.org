@@ -1106,3 +1106,42 @@ https://www.productplan.com/learn/release-notes-best-practices/
 https://github.com/imartinez/privateGPT
   [2023-05-16 mar]
   [[file:/run/media/angel/0403-0201/archlinux_dark.org::*script2-user.sh][script2-user.sh]]
+** TODO DSW software: renoise installation
+[[https://tutorials.renoise.com/wiki/Linux_FAQ#Renoise_System-Wide_Installation]]
+Renoise System-Wide Installation
+  [2023-06-10 sáb]
+** TODO org and https link
+An explanation about the steps that org follow to open an https link (keyshortcut: C-c-o).
+https://emacs.stackexchange.com/questions/64371/org-mode-open-link-in-browser-directly
+
+When we foolow a https link in org with the shortcut C-c-o, we are triggering multiple functions:
+ * file: ol.el 
+   * =open-url-at-point=
+   * =org-link-open=
+   * =org-link-parameters=
+Specifically, the browser commands are:     
+ * file: browse-url.el
+   * function: =browser-url=
+   * variables:
+     * =browse-url-browser-function=
+       * function: =browse-url-default-browser=
+	 * function: =browse-url-firefox=  ([[file:/usr/share/emacs/28.2/lisp/net/browse-url.el.gz::defun browse-url-firefox (url &optional new-window][browse-url.el]])
+     * =browse-url-handlers=
+     * =browse-url-default-handlers=
+
+#+begin_src bash :results verbatim
+# requierements
+sudo pacman -Syu --needed --noconfirm \
+     ladspa \
+     dssi \
+     realtime-privileges
+# useradd -m -G realtime $USER
+usermod -aG realtime $USER
+# install
+# paur renoise-demo
+#+end_src
+
+#+RESULTS:
+       
+   [2023-06-10 sáb]
+   [[file:/usr/share/emacs/28.2/lisp/org/ol.el.gz::link (org-link-open link arg)))]]
