@@ -1145,3 +1145,53 @@ usermod -aG realtime $USER
        
    [2023-06-10 sáb]
    [[file:/usr/share/emacs/28.2/lisp/org/ol.el.gz::link (org-link-open link arg)))]]
+** TODO openbox cratsh during fullscreen switching
+#+begin_src bash :results verbatim
+# apply patch 2023-06-18
+# Debian Bug report logs - #1033385
+# openbox: Openbox crashes when switching out of a fullscreen window (requires GLib 2.76.0 to reproduce)
+url='http://git.openbox.org/?p=mikachu/openbox.git;a=commitdiff_plain;h=d41128e5a1002af41c976c8860f8299cfcd3cd72;hp=8c5099bd06f37bc84d979e2aacc637ea5779ab09'
+wget -O /tmp/openbox/client-c-patch.diff "${url}"
+cd /tmp/openbox/ && git apply client-c-patch.diff "${url}"
+./bootstrap && ./configure && make && make install
+#+end_src
+  [2023-06-18 So]
+** TODO nucleo rueda trasera bici
+https://duckduckgo.com/?t=ffab&q=nucleo+rueda+trasera+bici&iax=videos&ia=videos&iai=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3Dpc_ti6h8M3I
+  [2023-06-18 So]
+  [[file:~/Projects/archlinux/desktop/openbox/autostart::nm-applet &]]
+** TODO tint2 theme collections
+https://github.com/addy-dclxvi/tint2-theme-collections
+  [2023-06-21 Mi]
+** TODO human vaccines europe
+file:///run/media/angel/TOSHIBA_EXT/KN28/emacshome/documents/reference/vaccines/human-vaccines/human-vaccines-europe.org
+
+file:///run/media/angel/TOSHIBA_EXT/KN28/emacshome/documents/reference/bioinformatics/DATABASES/OMIM/OMIM.org
+  [2023-06-21 Mi]
+** TODO convert peptides to SMILES
+https://bioinformatics.stackexchange.com/questions/17927/how-to-convert-amino-acid-sequence-to-smiles-format
+  [2023-06-22 Do]
+  [[file:~/Downloads/pccompound_result.txt::MW: 581.700 g/mol HBDC: 2 HBAC: 10 XLogP: 2.3 TFC: 0 MF: C31H51NO9]]
+** TODO run unit tests after file modifycation
+https://superuser.com/questions/181517/how-to-execute-a-command-whenever-a-file-changes
+  [2023-06-23 Fr]
+** TODO bash good practices
+https://stackoverflow.com/questions/45425349/how-to-echo-and-save-at-the-same-time
+
+:Question:
+Is there an elegant way to both echo a command and save it to a file? The common use case is =echo "test" >> someappendedfile.txt=
+:answer:
+FYI -- =echo "foo" >> somefile= is really inefficient if you put =>> somefile= on every line over and over; it re-opens the output every single time you want to run a command and closes it again after. Much more efficient to do your redirection just once: =exec >> somefile= at the top of your script -- or, for the case at hand, =exec > >(tee -a somefile)= to redirect to tee (and thus to copy all content both to the file and to the original stdout location).
+
+#+begin_example bash
+echo "foo" >> somefile
+exec > >(tee -a somefile)
+#+end_example
+
+  [2023-06-23 Fr]
+** TODO X Window System (Documentation)
+https://www.x.org/releases/current/doc/
+  [2023-06-23 Fr]
+** TODO TAE calculations
+https://sharebiology.com/tae-buffer-tris-acetate-edta/
+  [2023-06-26 Mo]
